@@ -3,49 +3,93 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>EarnUSDC - High Yield USDC Staking</title>
+    <meta name="description" content="EarnUSDC - Earn high yields on your USDC deposits on Base Network">
+    <title>EarnUSDC - High Yield USDC Staking on Base</title>
+
+    <!-- Security Headers -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdnjs.cloudflare.com https://mainnet.base.org;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta http-equiv="X-Frame-Options" content="DENY">
+
+    <!-- Styles -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+
+    <!-- Web3 and Dependencies -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.3.0/web3.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
-    
-    <!-- Core Libraries -->
-    <script type="module" src="core/events.js"></script>
-    <script type="module" src="core/store.js"></script>
-
-    <!-- Transaction Handlers -->
-    <script type="module" src="transactions/gas.js"></script>
-    <script type="module" src="transactions/executor.js"></script>
-
-    <!-- Wallet Integration -->
-    <script type="module" src="wallet/connector.js"></script>
-    <script type="module" src="wallet/events.js"></script>
-
-    <!-- UI Components -->
-    <script type="module" src="ui/alerts.js"></script>
-    <script type="module" src="ui/modals.js"></script>
-    <script type="module" src="ui/forms.js"></script>
-    <script type="module" src="ui/dashboard.js"></script>
-
-    <!-- Utilities -->
-    <script type="module" src="utils/formatters.js"></script>
-    <script type="module" src="utils/validators.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header -->
-    <header class="bg-white shadow">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-            <div class="flex justify-between items-center">
-                <h1 class="text-3xl font-bold text-gray-900">EarnUSDC</h1>
-                <div id="walletConnect">
-                    <!-- Wallet connection button will be injected here -->
+    <header class="bg-white shadow-sm">
+        <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between items-center h-16">
+                <!-- Logo -->
+                <div class="flex items-center">
+                    <h1 class="text-2xl font-bold text-gray-900">EarnUSDC</h1>
+                </div>
+
+                <!-- Wallet Connection -->
+                <div id="walletConnect" class="flex items-center gap-4">
+                    <!-- Connect Button -->
+                    <button id="connectWalletBtn" 
+                            class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+                        Connect Wallet
+                    </button>
+
+                    <!-- Wallet Info (Hidden by default) -->
+                    <div id="walletInfo" class="hidden items-center gap-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span id="networkName" class="text-sm text-gray-600">Base Network</span>
+                        </div>
+                        <div class="flex items-center bg-gray-100 rounded-lg px-3 py-1">
+                            <img id="walletIcon" class="h-4 w-4 mr-2" alt="Wallet Icon">
+                            <span id="walletAddress" class="text-sm font-medium text-gray-800"></span>
+                        </div>
+                        <button id="disconnectWalletBtn" 
+                                class="text-sm text-red-600 hover:text-red-700 font-medium">
+                            Disconnect
+                        </button>
+                    </div>
                 </div>
             </div>
-        </div>
+        </nav>
     </header>
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div id="mainContent">
+        <!-- Pre-connection Message -->
+        <div id="preConnectionMessage" class="text-center py-12">
+            <h2 class="text-2xl font-bold text-gray-900 mb-4">Welcome to EarnUSDC</h2>
+            <p class="text-gray-600 mb-8">Connect your wallet to start earning high yields on your USDC deposits</p>
+            <div class="flex justify-center space-x-4">
+                <div class="flex items-center text-gray-600">
+                    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Base Network</span>
+                </div>
+                <div class="flex items-center text-gray-600">
+                    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>24% APR</span>
+                </div>
+                <div class="flex items-center text-gray-600">
+                    <svg class="h-5 w-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span>Referral Rewards</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Container -->
+        <div id="mainContent" class="hidden">
             <!-- Dashboard will be injected here -->
+            <div id="loadingPlaceholder" class="text-center py-12">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                <p class="mt-4 text-gray-600">Loading your dashboard...</p>
+            </div>
         </div>
     </main>
 
@@ -54,8 +98,14 @@
         <!-- Alerts will be injected here -->
     </div>
 
-    <!-- Contract Configuration -->
-    <script>
+    <!-- Modal Container -->
+    <div id="modalContainer" class="relative z-50">
+        <!-- Modals will be injected here -->
+    </div>
+
+    <!-- App Configuration and Initialization -->
+    <script type="module">
+        // Contract Configuration
         window.CONTRACT_ADDRESS = '0x3038eBDFF5C17d9B0f07871b66FCDc7B9329fCD8';
         window.USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
         window.CHAIN_CONFIG = {
@@ -69,18 +119,119 @@
             rpcUrls: ['https://mainnet.base.org'],
             blockExplorerUrls: ['https://basescan.org']
         };
-        
-        // Initialize application
+
+        // Import Dependencies
+        import { CONTRACT_ABI, USDC_ABI } from './config/contracts.js';
+        import { initializeWalletConnection, disconnectWallet } from './wallet/connector.js';
+        import { setupWalletEvents } from './wallet/events.js';
+        import { renderDashboard } from './ui/dashboard.js';
+        import { showAlert } from './ui/alerts.js';
+        import { emit } from './core/events.js';
+        import { getState, updateState } from './core/store.js';
+
+        // DOM Elements
+        const connectWalletBtn = document.getElementById('connectWalletBtn');
+        const disconnectWalletBtn = document.getElementById('disconnectWalletBtn');
+        const walletInfo = document.getElementById('walletInfo');
+        const walletAddress = document.getElementById('walletAddress');
+        const walletIcon = document.getElementById('walletIcon');
+        const mainContent = document.getElementById('mainContent');
+        const preConnectionMessage = document.getElementById('preConnectionMessage');
+
+        // Wallet Connection Handler
+        async function handleWalletConnection() {
+            try {
+                connectWalletBtn.disabled = true;
+                const connected = await initializeWalletConnection();
+                
+                if (connected) {
+                    // Update UI
+                    connectWalletBtn.classList.add('hidden');
+                    walletInfo.classList.remove('hidden');
+                    walletInfo.classList.add('flex');
+                    preConnectionMessage.classList.add('hidden');
+                    mainContent.classList.remove('hidden');
+
+                    // Set wallet icon based on provider
+                    if (window.ethereum.isMetaMask) {
+                        walletIcon.src = 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg';
+                        walletIcon.alt = 'MetaMask';
+                    }
+
+                    // Update address display
+                    const address = window.ethereum.selectedAddress;
+                    walletAddress.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
+
+                    // Render dashboard
+                    await renderDashboard();
+                }
+            } catch (error) {
+                showAlert(error.message, 'error');
+            } finally {
+                connectWalletBtn.disabled = false;
+            }
+        }
+
+        // Wallet Disconnection Handler
+        function handleWalletDisconnection() {
+            disconnectWallet();
+            walletInfo.classList.add('hidden');
+            walletInfo.classList.remove('flex');
+            connectWalletBtn.classList.remove('hidden');
+            mainContent.classList.add('hidden');
+            preConnectionMessage.classList.remove('hidden');
+            emit('wallet:disconnected');
+        }
+
+        // Event Listeners
+        connectWalletBtn.addEventListener('click', handleWalletConnection);
+        disconnectWalletBtn.addEventListener('click', handleWalletDisconnection);
+
+        // Handle account changes
+        window.ethereum?.on('accountsChanged', async (accounts) => {
+            if (accounts.length > 0) {
+                walletAddress.textContent = `${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`;
+                await renderDashboard();
+            } else {
+                handleWalletDisconnection();
+            }
+        });
+
+        // Handle chain changes
+        window.ethereum?.on('chainChanged', async (chainId) => {
+            if (chainId !== window.CHAIN_CONFIG.chainId) {
+                showAlert('Please switch to Base Network', 'warning');
+                handleWalletDisconnection();
+            } else {
+                if (window.ethereum.selectedAddress) {
+                    await renderDashboard();
+                }
+            }
+        });
+
+        // Initialize Application
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                const { setupWalletEvents } = await import('./wallet/events.js');
-                const { renderDashboard } = await import('./ui/dashboard.js');
-                
+                // Setup wallet events
                 setupWalletEvents();
-                renderDashboard();
+
+                // Check if wallet is already connected
+                if (window.ethereum?.selectedAddress) {
+                    await handleWalletConnection();
+                }
+
+                // Remove loading state
+                document.body.classList.remove('loading');
             } catch (error) {
                 console.error('Initialization error:', error);
+                showAlert('Failed to initialize application', 'error');
             }
+        });
+
+        // Handle errors
+        window.addEventListener('unhandledrejection', (event) => {
+            console.error('Unhandled promise rejection:', event.reason);
+            showAlert('An unexpected error occurred', 'error');
         });
     </script>
 </body>
