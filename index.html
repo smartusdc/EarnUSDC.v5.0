@@ -218,8 +218,29 @@
         }
 
         // Initialize Application
+      // Initialize Application
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                // Wait for Web3 to load
+                await new Promise((resolve, reject) => {
+                    if (window.web3Loaded) {
+                        resolve();
+                    } else {
+                        const checkWeb3 = setInterval(() => {
+                            if (window.web3Loaded) {
+                                clearInterval(checkWeb3);
+                                resolve();
+                            }
+                        }, 100);
+                        
+                        // Timeout after 10 seconds
+                        setTimeout(() => {
+                            clearInterval(checkWeb3);
+                            reject(new Error('Web3 loading timeout'));
+                        }, 10000);
+                    }
+                });
+
                 // Setup wallet events
                 setupWalletEvents();
 
@@ -232,9 +253,8 @@
                 document.body.classList.remove('loading');
             } catch (error) {
                 console.error('Initialization error:', error);
-                showAlert('Failed to initialize application', 'error');
+                showAlert('Failed to initialize application: ' + error.message, 'error');
             }
-        });
 
         // Handle errors
         window.addEventListener('unhandledrejection', (event) => {
