@@ -135,18 +135,17 @@ export async function initializeWalletConnection() {
         }
 
         // Update modal for data fetching
-        if (currentModalId) {
-            showModal({
-                title: 'Loading Data',
-                content: `
-                    <div class="text-center">
-                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                        <p class="mt-4 text-sm text-gray-500">Loading your account data...</p>
-                    </div>
-                `,
-                closable: false
-            });
-        }
+   if (currentModalId) {
+    updateModal(currentModalId, {
+        title: 'Loading Data',
+        content: `
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                <p class="mt-4 text-sm text-gray-500">Loading your account data...</p>
+            </div>
+        `
+    });
+}
 
         // Fetch initial data
         console.log('Fetching contract data...');
