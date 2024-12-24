@@ -63,7 +63,8 @@ export async function initializeWalletConnection() {
         if (!accounts || accounts.length === 0) {
             throw new Error('NO_ACCOUNTS');
         }
-        console.log('Account access granted:', accounts[0]);
+        const userAddress = accounts[0];
+        console.log('Account access granted:', userAddress);
 
         // Check and switch network if needed
         console.log('Checking network...');
@@ -71,28 +72,32 @@ export async function initializeWalletConnection() {
         console.log('Network check complete');
 
         // Initialize Web3 and fetch initial data
-        console.log('Initializing Web3 and fetching data...');
-        
-        // Create Web3 instance
-        web3Instance = new window.Web3(provider);
+        console.log('Initializing Web3...');
+        try {
+            web3Instance = new Web3(provider);
+        } catch (error) {
+            console.error('Web3 initialization error:', error);
+            throw new Error('WEB3_INIT_FAILED');
+        }
         console.log('Web3 instance created');
 
         // Initialize contracts
-        window.contract = new web3Instance.eth.Contract(
-            CONTRACT_ABI,
-            window.CONTRACT_ADDRESS
-        );
-        window.usdcContract = new web3Instance.eth.Contract(
-            USDC_ABI,
-            window.USDC_ADDRESS
-        );
-        console.log('Contracts initialized');
+        try {
+            window.contract = new web3Instance.eth.Contract(
+                CONTRACT_ABI,
+                window.CONTRACT_ADDRESS
+            );
+            window.usdcContract = new web3Instance.eth.Contract(
+                USDC_ABI,
+                window.USDC_ADDRESS
+            );
+            console.log('Contracts initialized');
+        } catch (error) {
+            console.error('Contract initialization error:', error);
+            throw new Error('CONTRACT_INIT_FAILED');
+        }
 
-        // Get the connected account
-        const userAddress = accounts[0];
-        console.log('Fetching data for account:', userAddress);
-
-        // Update modal content
+        // Update modal for data fetching
         if (currentModalId) {
             showModal({
                 title: 'Loading Data',
@@ -106,65 +111,60 @@ export async function initializeWalletConnection() {
             });
         }
 
-        // Fetch all required data in parallel
+        // Fetch initial data
         console.log('Fetching contract data...');
-        const [
-            deposits,
-            calculatedReward,
-            usdcBalance,
-            rankInfo,
-            referralCode
-        ] = await Promise.all([
-            window.contract.methods.deposits(userAddress).call(),
-            window.contract.methods.calculateReward(userAddress).call(),
-            window.usdcContract.methods.balanceOf(userAddress).call(),
-            window.contract.methods.getUserRank(userAddress).call(),
-            window.contract.methods.userToReferralCode(userAddress).call()
-        ]);
-        
-        console.log('Contract data fetched:', {
-            deposits,
-            calculatedReward,
-            usdcBalance,
-            rankInfo,
-            referralCode
-        });
+        try {
+            // Fetch basic data
+            const [deposits, calculatedReward, usdcBalance, referralCode] = await Promise.all([
+                window.contract.methods.deposits(userAddress).call(),
+                window.contract.methods.calculateReward(userAddress).call(),
+                window.usdcContract.methods.balanceOf(userAddress).call(),
+                window.contract.methods.userToReferralCode(userAddress).call()
+            ]);
 
-        // Calculate rank progress
-        const rankProgress = Math.min(
-            (Number(rankInfo.progressToNextRank) / 10000) * 100,
-            100
-        );
+            // Fetch rank data separately
+            const userRank = await window.contract.methods.getUserRank(userAddress).call();
+            console.log('User rank data:', userRank);
 
-        // Update application state
-        updateState({
-            wallet: {
-                address: userAddress,
-                isConnected: true,
-                networkId: await provider.request({ method: 'eth_chainId' })
-            },
-            balance: {
-                usdc: web3Instance.utils.fromWei(usdcBalance, 'mwei'),
-                deposits: web3Instance.utils.fromWei(deposits, 'mwei'),
-                rewards: web3Instance.utils.fromWei(calculatedReward, 'mwei')
-            },
-            rewards: {
-                pending: web3Instance.utils.fromWei(calculatedReward, 'mwei'),
-                accumulated: '0',
-                referral: '0'
-            },
-            rank: {
-                current: rankInfo.rankName,
-                bonus: Number(rankInfo.bonusRate) / 100,
-                progress: rankProgress
-            },
-            referral: {
-                code: referralCode === '0' ? null : referralCode
-            }
-        });
+            const rankProgress = Math.min(
+                (Number(userRank.progressToNextRank || 0) / 10000) * 100,
+                100
+            );
 
-        console.log('Application state updated');
-        emit('wallet:connected', { account: userAddress });
+            // Update application state
+            updateState({
+                wallet: {
+                    address: userAddress,
+                    isConnected: true,
+                    networkId: await provider.request({ method: 'eth_chainId' })
+                },
+                balance: {
+                    usdc: web3Instance.utils.fromWei(usdcBalance, 'mwei'),
+                    deposits: web3Instance.utils.fromWei(deposits, 'mwei'),
+                    rewards: web3Instance.utils.fromWei(calculatedReward, 'mwei')
+                },
+                rewards: {
+                    pending: web3Instance.utils.fromWei(calculatedReward, 'mwei'),
+                    accumulated: '0',
+                    referral: '0'
+                },
+                rank: {
+                    current: userRank.rankName || 'Normal',
+                    bonus: Number(userRank.bonusRate || 0) / 100,
+                    progress: rankProgress
+                },
+                referral: {
+                    code: referralCode === '0' ? null : referralCode
+                }
+            });
+
+            console.log('Application state updated successfully');
+            emit('wallet:connected', { account: userAddress });
+
+        } catch (error) {
+            console.error('Data fetching error:', error);
+            throw new Error('DATA_FETCH_FAILED');
+        }
 
         // Update connection state
         connectionState = CONNECTION_STATES.CONNECTED;
@@ -172,7 +172,6 @@ export async function initializeWalletConnection() {
 
         // Show success message
         showAlert('Successfully connected to wallet', 'success');
-        
         return true;
 
     } catch (error) {
@@ -229,21 +228,26 @@ async function requestAccounts() {
  * Ensure correct network connection
  */
 async function ensureCorrectNetwork() {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    
-    if (chainId !== window.CHAIN_CONFIG.chainId) {
-        try {
-            await window.ethereum.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: window.CHAIN_CONFIG.chainId }]
-            });
-        } catch (error) {
-            if (error.code === 4902) {
-                await addNetwork();
-            } else {
-                throw new Error('NETWORK_SWITCH_FAILED');
+    try {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        
+        if (chainId !== window.CHAIN_CONFIG.chainId) {
+            try {
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: window.CHAIN_CONFIG.chainId }]
+                });
+            } catch (error) {
+                if (error.code === 4902) {
+                    await addNetwork();
+                } else {
+                    throw new Error('NETWORK_SWITCH_FAILED');
+                }
             }
         }
+    } catch (error) {
+        console.error('Network check error:', error);
+        throw error;
     }
 }
 
@@ -257,6 +261,7 @@ async function addNetwork() {
             params: [window.CHAIN_CONFIG]
         });
     } catch (error) {
+        console.error('Network add error:', error);
         throw new Error('NETWORK_ADD_FAILED');
     }
 }
@@ -276,12 +281,14 @@ function handleConnectionError(error) {
         'NO_ACCOUNTS': 'No accounts found. Please check your wallet',
         'NETWORK_SWITCH_FAILED': 'Failed to switch network. Please try manually',
         'NETWORK_ADD_FAILED': 'Failed to add network. Please add Base Network manually',
-        'WEB3_INIT_FAILED': 'Failed to initialize. Please refresh the page'
+        'WEB3_INIT_FAILED': 'Failed to initialize Web3. Please refresh the page',
+        'CONTRACT_INIT_FAILED': 'Failed to initialize contracts. Please try again',
+        'DATA_FETCH_FAILED': 'Failed to fetch account data. Please try again'
     };
 
-    const message = errorMessages[error.message] || 'Wallet connection failed';
+    const message = errorMessages[error.message] || error.message || 'Wallet connection failed';
     showAlert(message, 'error');
-    emit('wallet:error', { error: error.message });
+    emit('wallet:error', { error: message });
 
     return new Error(message);
 }
