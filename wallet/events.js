@@ -90,4 +90,69 @@ function handleDisconnect(error) {
  * @param {Object} connectInfo Connection info
  */
 function handleConnect(connectInfo) {
-    emit('wallet:connected', connectInfo
+    emit('wallet:connected', connectInfo);
+    
+    // 接続が確立された後のデータ初期化
+    initializeAfterConnection();
+}
+
+/**
+ * ユーザーデータの再読み込み
+ * @param {string} account Account address
+ */
+async function refreshUserData(account) {
+    try {
+        const [balance, rewards] = await Promise.all([
+            contract.methods.deposits(account).call(),
+            contract.methods.calculateReward(account).call()
+        ]);
+
+        updateState({
+            balance: web3.utils.fromWei(balance, 'mwei'),
+            rewards: web3.utils.fromWei(rewards, 'mwei')
+        });
+    } catch (error) {
+        console.error('Error refreshing user data:', error);
+        showAlert('Failed to refresh account data', 'error');
+    }
+}
+
+/**
+ * ネットワーク切り替えの確認
+ * @returns {Promise<boolean>}
+ */
+async function confirmNetworkSwitch() {
+    return new Promise(resolve => {
+        const result = window.confirm(
+            'This application requires Base Network. Would you like to switch networks?'
+        );
+        resolve(result);
+    });
+}
+
+/**
+ * 接続後の初期化処理
+ */
+async function initializeAfterConnection() {
+    try {
+        const accounts = await web3.eth.getAccounts();
+        if (accounts && accounts.length > 0) {
+            await refreshUserData(accounts[0]);
+        }
+    } catch (error) {
+        console.error('Initialization error:', error);
+        showAlert('Failed to initialize application data', 'error');
+    }
+}
+
+/**
+ * イベントリスナーのクリーンアップ
+ */
+export function cleanupWalletEvents() {
+    if (!window.ethereum) return;
+    
+    window.ethereum.removeListener('accountsChanged', handleAccountChange);
+    window.ethereum.removeListener('chainChanged', handleChainChange);
+    window.ethereum.removeListener('disconnect', handleDisconnect);
+    window.ethereum.removeListener('connect', handleConnect);
+}
