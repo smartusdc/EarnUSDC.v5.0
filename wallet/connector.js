@@ -17,6 +17,8 @@ let connectionState = CONNECTION_STATES.DISCONNECTED;
 let connectionAttempts = 0;
 const MAX_ATTEMPTS = 3;
 let currentModalId = null;
+let connectTimeout = null;
+const CONNECT_TIMEOUT_MS = 30000; // 30 seconds timeout
 
 /**
  * ウォレット接続の初期化
@@ -28,19 +30,30 @@ export async function initializeWalletConnection() {
         return false;
     }
 
+    // Clear any existing timeout
+    if (connectTimeout) {
+        clearTimeout(connectTimeout);
+    }
+
     try {
         connectionState = CONNECTION_STATES.CONNECTING;
         currentModalId = showModal({
-            type: 'process',
-            closable: false,
             title: 'Connecting Wallet',
             content: `
                 <div class="text-center">
                     <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                    <p class="mt-2 text-sm text-gray-500">Please approve the connection request in your wallet</p>
+                    <p class="mt-4 text-sm text-gray-500">Connecting to your wallet...</p>
                 </div>
-            `
+            `,
+            closable: false
         });
+
+        // Set connection timeout
+        connectTimeout = setTimeout(() => {
+            if (connectionState === CONNECTION_STATES.CONNECTING) {
+                throw new Error('CONNECTION_TIMEOUT');
+            }
+        }, CONNECT_TIMEOUT_MS);
 
         // Check for wallet presence
         if (!window.ethereum) {
@@ -59,14 +72,27 @@ export async function initializeWalletConnection() {
         // Initialize Web3 and contracts
         await initializeWeb3(accounts[0]);
 
+        // Clear timeout as connection was successful
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+
+        // Update connection state
         connectionState = CONNECTION_STATES.CONNECTED;
         connectionAttempts = 0;
+
+        // Emit success event and show notification
         emit('wallet:connected', { account: accounts[0] });
         showAlert('Wallet connected successfully', 'success');
         
         return true;
 
     } catch (error) {
+        // Clear timeout if exists
+        if (connectTimeout) {
+            clearTimeout(connectTimeout);
+            connectTimeout = null;
+        }
+
         const handledError = handleConnectionError(error);
         throw handledError;
 
@@ -84,13 +110,24 @@ export async function initializeWalletConnection() {
  */
 async function requestAccounts() {
     try {
-        return await window.ethereum.request({ 
+        const accounts = await window.ethereum.request({ 
             method: 'eth_requestAccounts' 
         });
+        
+        if (!accounts || accounts.length === 0) {
+            throw new Error('NO_ACCOUNTS');
+        }
+        
+        return accounts;
     } catch (error) {
+        console.error('Request accounts error:', error);
+        
         if (error.code === 4001) {
             throw new Error('USER_REJECTED');
+        } else if (error.code === -32002) {
+            throw new Error('REQUEST_PENDING');
         }
+        
         throw error;
     }
 }
@@ -100,20 +137,36 @@ async function requestAccounts() {
  * @returns {Promise<void>}
  */
 async function ensureCorrectNetwork() {
-    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-    if (chainId !== window.CHAIN_CONFIG.chainId) {
-        try {
-            await window.ethereum.request({
-                method: 'wallet_switchEthereumChain',
-                params: [{ chainId: window.CHAIN_CONFIG.chainId }]
-            });
-        } catch (error) {
-            if (error.code === 4902) {
-                await addBaseNetwork();
-            } else {
-                throw error;
+    try {
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        
+        if (chainId !== window.CHAIN_CONFIG.chainId) {
+            try {
+                // First try to switch to the network
+                await window.ethereum.request({
+                    method: 'wallet_switchEthereumChain',
+                    params: [{ chainId: window.CHAIN_CONFIG.chainId }]
+                });
+            } catch (switchError) {
+                // If the network is not added yet, add it
+                if (switchError.code === 4902) {
+                    await addBaseNetwork();
+                } else if (switchError.code === 4001) {
+                    throw new Error('NETWORK_CHANGE_REJECTED');
+                } else {
+                    throw switchError;
+                }
             }
         }
+        
+        // Verify the network switch was successful
+        const newChainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (newChainId !== window.CHAIN_CONFIG.chainId) {
+            throw new Error('NETWORK_SWITCH_FAILED');
+        }
+    } catch (error) {
+        console.error('Network switch error:', error);
+        throw error;
     }
 }
 
@@ -123,17 +176,33 @@ async function ensureCorrectNetwork() {
  * @returns {Promise<void>}
  */
 async function initializeWeb3(account) {
-    window.web3 = new Web3(window.ethereum);
-    window.contract = new web3.eth.Contract(CONTRACT_ABI, window.CONTRACT_ADDRESS);
-    window.usdcContract = new web3.eth.Contract(USDC_ABI, window.USDC_ADDRESS);
-    
-    updateState({
-        wallet: {
-            address: account,
-            isConnected: true,
-            chainId: await window.ethereum.request({ method: 'eth_chainId' })
-        }
-    });
+    try {
+        window.web3 = new Web3(window.ethereum);
+        
+        // Initialize contracts
+        window.contract = new web3.eth.Contract(
+            CONTRACT_ABI, 
+            window.CONTRACT_ADDRESS
+        );
+        
+        window.usdcContract = new web3.eth.Contract(
+            USDC_ABI, 
+            window.USDC_ADDRESS
+        );
+        
+        // Update application state
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        updateState({
+            wallet: {
+                address: account,
+                isConnected: true,
+                chainId: chainId
+            }
+        });
+    } catch (error) {
+        console.error('Web3 initialization error:', error);
+        throw new Error('WEB3_INIT_FAILED');
+    }
 }
 
 /**
@@ -146,9 +215,19 @@ async function addBaseNetwork() {
             method: 'wallet_addEthereumChain',
             params: [window.CHAIN_CONFIG]
         });
+        
+        // Verify network was added successfully
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        if (chainId !== window.CHAIN_CONFIG.chainId) {
+            throw new Error('NETWORK_ADD_FAILED');
+        }
+        
         emit('network:added', window.CHAIN_CONFIG);
     } catch (error) {
         console.error('Failed to add Base network:', error);
+        if (error.code === 4001) {
+            throw new Error('NETWORK_ADD_REJECTED');
+        }
         throw new Error('NETWORK_ADD_FAILED');
     }
 }
@@ -170,6 +249,10 @@ function handleConnectionError(error) {
             message: 'Connection request was rejected',
             type: 'warning'
         },
+        'REQUEST_PENDING': {
+            message: 'Connection request already pending. Please check your wallet.',
+            type: 'warning'
+        },
         'NO_ACCOUNTS': {
             message: 'No accounts found. Please check your wallet',
             type: 'error'
@@ -177,19 +260,40 @@ function handleConnectionError(error) {
         'NETWORK_ADD_FAILED': {
             message: 'Failed to add Base network. Please try manually',
             type: 'error'
+        },
+        'NETWORK_ADD_REJECTED': {
+            message: 'Network addition was rejected. Please add Base network manually',
+            type: 'warning'
+        },
+        'NETWORK_CHANGE_REJECTED': {
+            message: 'Network change was rejected. Please switch to Base network',
+            type: 'warning'
+        },
+        'NETWORK_SWITCH_FAILED': {
+            message: 'Failed to switch to Base network. Please try manually',
+            type: 'error'
+        },
+        'WEB3_INIT_FAILED': {
+            message: 'Failed to initialize Web3. Please refresh the page',
+            type: 'error'
+        },
+        'CONNECTION_TIMEOUT': {
+            message: 'Connection timed out. Please try again',
+            type: 'error'
         }
     };
 
     const errorConfig = errorMessages[error.message] || {
-        message: 'Failed to connect wallet',
+        message: `Failed to connect wallet: ${error.message}`,
         type: 'error'
     };
 
     showAlert(errorConfig.message, errorConfig.type);
     emit('wallet:error', { error: error.message });
 
-    // Handle retry logic
-    if (connectionAttempts < MAX_ATTEMPTS && error.message !== 'USER_REJECTED') {
+    // Only retry for certain errors and if we haven't exceeded max attempts
+    const retryableErrors = ['NETWORK_SWITCH_FAILED', 'WEB3_INIT_FAILED', 'CONNECTION_TIMEOUT'];
+    if (connectionAttempts < MAX_ATTEMPTS && retryableErrors.includes(error.message)) {
         connectionAttempts++;
         return new Error(errorConfig.message + ' Retrying...');
     }
@@ -209,7 +313,16 @@ export function getConnectionState() {
  * ウォレットの切断
  */
 export function disconnectWallet() {
+    // Clear any existing timeout
+    if (connectTimeout) {
+        clearTimeout(connectTimeout);
+        connectTimeout = null;
+    }
+    
     connectionState = CONNECTION_STATES.DISCONNECTED;
+    connectionAttempts = 0;
+    
+    // Reset application state
     updateState({
         wallet: {
             address: '',
@@ -217,6 +330,19 @@ export function disconnectWallet() {
             chainId: null
         }
     });
+    
+    // Clean up Web3 instance
+    window.web3 = null;
+    window.contract = null;
+    window.usdcContract = null;
+    
     emit('wallet:disconnected');
     showAlert('Wallet disconnected', 'info');
 }
+
+// Handle page unload
+window.addEventListener('unload', () => {
+    if (connectTimeout) {
+        clearTimeout(connectTimeout);
+    }
+});
