@@ -72,45 +72,9 @@ export async function initializeWalletConnection() {
 
         // Initialize Web3 and fetch initial data
         console.log('Initializing Web3 and fetching data...');
-        await initializeWeb3AndContracts(provider);
-        console.log('Web3 initialization complete');
-
-        // Update connection state
-        connectionState = CONNECTION_STATES.CONNECTED;
-        connectionAttempts = 0;
-
-        // Show success message
-        showAlert('Successfully connected to wallet', 'success');
         
-        return true;
-
-    } catch (error) {
-        console.error('Connection error:', error);
-        const handledError = handleConnectionError(error);
-        throw handledError;
-
-    } finally {
-        if (currentModalId) {
-            closeModal(currentModalId);
-            currentModalId = null;
-        }
-    }
-}
-
-/**
- * Initialize Web3 and contracts, fetch initial data
- * @param {any} provider Ethereum provider
- */
-async function initializeWeb3AndContracts(provider) {
-    try {
-        console.log('Starting Web3 initialization...');
-        
-        const Web3 = window.Web3;
-        if (!Web3) {
-            throw new Error('Web3 is not loaded');
-        }
-
-        web3Instance = new Web3(provider);
+        // Create Web3 instance
+        web3Instance = new window.Web3(provider);
         console.log('Web3 instance created');
 
         // Initialize contracts
@@ -125,7 +89,6 @@ async function initializeWeb3AndContracts(provider) {
         console.log('Contracts initialized');
 
         // Get the connected account
-        const accounts = await web3Instance.eth.getAccounts();
         const userAddress = accounts[0];
         console.log('Fetching data for account:', userAddress);
 
@@ -202,13 +165,26 @@ async function initializeWeb3AndContracts(provider) {
 
         console.log('Application state updated');
         emit('wallet:connected', { account: userAddress });
+
+        // Update connection state
+        connectionState = CONNECTION_STATES.CONNECTED;
+        connectionAttempts = 0;
+
+        // Show success message
+        showAlert('Successfully connected to wallet', 'success');
         
         return true;
 
     } catch (error) {
-        console.error('Web3 initialization error:', error);
-        showAlert('Failed to load account data. Please try again.', 'error');
-        throw new Error('WEB3_INIT_FAILED');
+        console.error('Connection error:', error);
+        const handledError = handleConnectionError(error);
+        throw handledError;
+
+    } finally {
+        if (currentModalId) {
+            closeModal(currentModalId);
+            currentModalId = null;
+        }
     }
 }
 
