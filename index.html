@@ -135,12 +135,6 @@
         const mainContent = document.getElementById('mainContent');
         const preConnectionMessage = document.getElementById('preConnectionMessage');
 
-        // Check Web3 availability
-        if (typeof Web3 === 'undefined') {
-            console.error('Web3 is not loaded');
-            showAlert('Failed to load Web3. Please refresh the page.', 'error');
-        }
-
         // Wallet Connection Handler
         async function handleWalletConnection() {
             try {
@@ -218,7 +212,6 @@
         }
 
         // Initialize Application
-      // Initialize Application
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 // Wait for Web3 to load
@@ -255,6 +248,7 @@
                 console.error('Initialization error:', error);
                 showAlert('Failed to initialize application: ' + error.message, 'error');
             }
+        });
 
         // Handle errors
         window.addEventListener('unhandledrejection', (event) => {
