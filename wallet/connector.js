@@ -60,7 +60,7 @@ export async function initializeWalletConnection() {
             throw new Error('WALLET_NOT_FOUND');
         }
 
-        // Request accounts
+        // Request accounts first
         const accounts = await requestAccounts();
         if (!accounts || accounts.length === 0) {
             throw new Error('NO_ACCOUNTS');
@@ -70,7 +70,9 @@ export async function initializeWalletConnection() {
         await ensureCorrectNetwork();
         
         // Initialize Web3 and contracts
-        await initializeWeb3(accounts[0]);
+        if (!await initializeWeb3(accounts[0])) {
+            throw new Error('WEB3_INIT_FAILED');
+        }
 
         // Clear timeout as connection was successful
         clearTimeout(connectTimeout);
@@ -101,6 +103,60 @@ export async function initializeWalletConnection() {
             closeModal(currentModalId);
             currentModalId = null;
         }
+    }
+}
+
+/**
+ * Web3インスタンスの初期化
+ * @param {string} account Connected account address
+ * @returns {Promise<boolean>} Initialization success
+ */
+async function initializeWeb3(account) {
+    try {
+        // Ensure Web3 is available globally
+        if (typeof window.Web3 === 'undefined') {
+            console.error('Web3 is not loaded');
+            return false;
+        }
+
+        // Initialize Web3 with the current provider
+        window.web3 = new window.Web3(window.ethereum);
+        
+        if (!window.web3 || !window.web3.eth) {
+            console.error('Failed to initialize Web3 instance');
+            return false;
+        }
+
+        // Initialize contracts
+        try {
+            window.contract = new window.web3.eth.Contract(
+                CONTRACT_ABI,
+                window.CONTRACT_ADDRESS
+            );
+
+            window.usdcContract = new window.web3.eth.Contract(
+                USDC_ABI,
+                window.USDC_ADDRESS
+            );
+        } catch (contractError) {
+            console.error('Contract initialization error:', contractError);
+            return false;
+        }
+
+        // Update application state
+        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+        updateState({
+            wallet: {
+                address: account,
+                isConnected: true,
+                chainId: chainId
+            }
+        });
+
+        return true;
+    } catch (error) {
+        console.error('Web3 initialization error:', error);
+        return false;
     }
 }
 
@@ -167,41 +223,6 @@ async function ensureCorrectNetwork() {
     } catch (error) {
         console.error('Network switch error:', error);
         throw error;
-    }
-}
-
-/**
- * Web3インスタンスの初期化
- * @param {string} account Connected account address
- * @returns {Promise<void>}
- */
-async function initializeWeb3(account) {
-    try {
-        window.web3 = new Web3(window.ethereum);
-        
-        // Initialize contracts
-        window.contract = new web3.eth.Contract(
-            CONTRACT_ABI, 
-            window.CONTRACT_ADDRESS
-        );
-        
-        window.usdcContract = new web3.eth.Contract(
-            USDC_ABI, 
-            window.USDC_ADDRESS
-        );
-        
-        // Update application state
-        const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-        updateState({
-            wallet: {
-                address: account,
-                isConnected: true,
-                chainId: chainId
-            }
-        });
-    } catch (error) {
-        console.error('Web3 initialization error:', error);
-        throw new Error('WEB3_INIT_FAILED');
     }
 }
 
@@ -284,7 +305,7 @@ function handleConnectionError(error) {
     };
 
     const errorConfig = errorMessages[error.message] || {
-        message: `Failed to connect wallet: ${error.message}`,
+        message: 'Failed to connect wallet: ' + error.message,
         type: 'error'
     };
 
