@@ -121,9 +121,13 @@ async function detectEthereumProvider() {
  */
 async function initializeWeb3AndContracts(provider) {
     try {
-        // Import Web3 dynamically
-        const Web3 = await import('https://cdnjs.cloudflare.com/ajax/libs/web3/4.3.0/web3.min.js');
-        web3Instance = new Web3.default(provider);
+        // Web3が既にグローバルに存在する場合はそれを使用
+        const Web3 = window.Web3;
+        if (!Web3) {
+            throw new Error('Web3 is not loaded');
+        }
+
+        web3Instance = new Web3(provider);
 
         // Initialize contracts
         window.contract = new web3Instance.eth.Contract(
@@ -142,7 +146,6 @@ async function initializeWeb3AndContracts(provider) {
         throw new Error('WEB3_INIT_FAILED');
     }
 }
-
 /**
  * アカウントへのアクセスをリクエスト
  * @returns {Promise<string[]>} Connected accounts
