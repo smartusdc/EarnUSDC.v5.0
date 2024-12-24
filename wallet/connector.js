@@ -13,11 +13,48 @@ const CONNECTION_STATES = {
     ERROR: 'error'
 };
 
+// Rank thresholds in USDC
+const RANK_THRESHOLDS = {
+    WHALE: 100000,
+    PLATINUM: 10000,
+    GOLD: 1000,
+    SILVER: 100,
+    NORMAL: 0
+};
+
 let connectionState = CONNECTION_STATES.DISCONNECTED;
 let connectionAttempts = 0;
 const MAX_ATTEMPTS = 3;
 let currentModalId = null;
 let web3Instance = null;
+
+/**
+ * Calculate user rank based on deposit amount
+ * @param {string} depositAmount Amount in USDC (6 decimals)
+ * @returns {Object} Rank information
+ */
+function calculateRank(depositAmount) {
+    const amount = Number(web3Instance.utils.fromWei(depositAmount, 'mwei'));
+    
+    if (amount >= RANK_THRESHOLDS.WHALE) {
+        return { name: 'Whale', bonus: 4, progress: 100 };
+    }
+    if (amount >= RANK_THRESHOLDS.PLATINUM) {
+        return { name: 'Platinum', bonus: 3, progress: (amount - RANK_THRESHOLDS.PLATINUM) / (RANK_THRESHOLDS.WHALE - RANK_THRESHOLDS.PLATINUM) * 100 };
+    }
+    if (amount >= RANK_THRESHOLDS.GOLD) {
+        return { name: 'Gold', bonus: 2, progress: (amount - RANK_THRESHOLDS.GOLD) / (RANK_THRESHOLDS.PLATINUM - RANK_THRESHOLDS.GOLD) * 100 };
+    }
+    if (amount >= RANK_THRESHOLDS.SILVER) {
+        return { name: 'Silver', bonus: 1, progress: (amount - RANK_THRESHOLDS.SILVER) / (RANK_THRESHOLDS.GOLD - RANK_THRESHOLDS.SILVER) * 100 };
+    }
+    
+    return { 
+        name: 'Normal', 
+        bonus: 0, 
+        progress: (amount / RANK_THRESHOLDS.SILVER) * 100
+    };
+}
 
 /**
  * Initialize wallet connection
@@ -121,17 +158,11 @@ export async function initializeWalletConnection() {
                 window.contract.methods.calculateReward(userAddress).call(),
                 window.usdcContract.methods.balanceOf(userAddress).call()
             ]);
-            console.log('Basic data fetched');
+            console.log('Basic data fetched:', { deposits, calculatedReward, usdcBalance });
 
-            console.log('Fetching rank data...');
-            // Fetch rank data separately
-            const userRank = await window.contract.methods.getUserRank(userAddress).call();
-            console.log('Rank data fetched:', userRank);
-
-            const rankProgress = Math.min(
-                (Number(userRank.progressToNextRank || 0) / 10000) * 100,
-                100
-            );
+            // Calculate rank based on deposits
+            const rankInfo = calculateRank(deposits);
+            console.log('Rank calculated:', rankInfo);
 
             // Update application state
             updateState({
@@ -151,12 +182,9 @@ export async function initializeWalletConnection() {
                     referral: '0'
                 },
                 rank: {
-                    current: userRank.rankName || 'Normal',
-                    bonus: Number(userRank.bonusRate || 0) / 100,
-                    progress: rankProgress
-                },
-                referral: {
-                    code: null // リファラルコードは後で必要に応じて実装
+                    current: rankInfo.name,
+                    bonus: rankInfo.bonus,
+                    progress: Math.min(rankInfo.progress, 100)
                 }
             });
 
