@@ -1,8 +1,9 @@
 // wallet/connector.js
+import { emit } from '../core/events.js';
+import { updateState } from '../core/store.js';
 import { showAlert } from '../ui/alerts.js';
 import { showProcessModal, hideProcessModal } from '../ui/modals.js';
-import { updateState } from '../core/store.js';
-import { emit } from '../core/events.js';
+import { CONTRACT_ABI, USDC_ABI } from '../config/contracts.js';
 
 // Connection state management
 const CONNECTION_STATES = {
@@ -28,31 +29,41 @@ export async function initializeWalletConnection() {
 
     try {
         connectionState = CONNECTION_STATES.CONNECTING;
-        showProcessModal('Connecting Wallet', 'Please approve the connection request');
+        showProcessModal('Connecting Wallet', 'Please approve the connection request in your wallet');
 
+        // Check for wallet presence
         if (!window.ethereum) {
             throw new Error('WALLET_NOT_FOUND');
         }
 
+        // Request accounts
         const accounts = await requestAccounts();
         if (!accounts || accounts.length === 0) {
             throw new Error('NO_ACCOUNTS');
         }
 
+        // Check and switch network if needed
         await ensureCorrectNetwork();
+        
+        // Initialize Web3 and contracts
         await initializeWeb3(accounts[0]);
 
         connectionState = CONNECTION_STATES.CONNECTED;
         connectionAttempts = 0;
         emit('wallet:connected', { account: accounts[0] });
+        showAlert('Wallet connected successfully', 'success');
         
         return true;
 
     } catch (error) {
-        handleConnectionError(error);
-        return false;
+        const handledError = handleConnectionError(error);
+        throw handledError;
+
     } finally {
         hideProcessModal();
+        if (connectionState === CONNECTION_STATES.CONNECTING) {
+            connectionState = CONNECTION_STATES.DISCONNECTED;
+        }
     }
 }
 
@@ -78,12 +89,12 @@ async function requestAccounts() {
  * @returns {Promise<void>}
  */
 async function ensureCorrectNetwork() {
-    const chainId = await ethereum.request({ method: 'eth_chainId' });
-    if (chainId !== CHAIN_CONFIG.chainId) {
+    const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+    if (chainId !== window.CHAIN_CONFIG.chainId) {
         try {
-            await ethereum.request({
+            await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
-                params: [{ chainId: CHAIN_CONFIG.chainId }]
+                params: [{ chainId: window.CHAIN_CONFIG.chainId }]
             });
         } catch (error) {
             if (error.code === 4902) {
@@ -102,13 +113,14 @@ async function ensureCorrectNetwork() {
  */
 async function initializeWeb3(account) {
     window.web3 = new Web3(window.ethereum);
-    window.contract = new web3.eth.Contract(CONTRACT_ABI, CONTRACT_ADDRESS);
-    window.usdcContract = new web3.eth.Contract(USDC_ABI, USDC_ADDRESS);
+    window.contract = new web3.eth.Contract(CONTRACT_ABI, window.CONTRACT_ADDRESS);
+    window.usdcContract = new web3.eth.Contract(USDC_ABI, window.USDC_ADDRESS);
     
     updateState({
         wallet: {
             address: account,
-            isConnected: true
+            isConnected: true,
+            chainId: await window.ethereum.request({ method: 'eth_chainId' })
         }
     });
 }
@@ -119,11 +131,11 @@ async function initializeWeb3(account) {
  */
 async function addBaseNetwork() {
     try {
-        await ethereum.request({
+        await window.ethereum.request({
             method: 'wallet_addEthereumChain',
-            params: [CHAIN_CONFIG]
+            params: [window.CHAIN_CONFIG]
         });
-        emit('network:added', CHAIN_CONFIG);
+        emit('network:added', window.CHAIN_CONFIG);
     } catch (error) {
         console.error('Failed to add Base network:', error);
         throw new Error('NETWORK_ADD_FAILED');
@@ -133,6 +145,7 @@ async function addBaseNetwork() {
 /**
  * 接続エラーの処理
  * @param {Error} error Connection error
+ * @returns {Error} Handled error with user-friendly message
  */
 function handleConnectionError(error) {
     connectionState = CONNECTION_STATES.ERROR;
@@ -164,11 +177,13 @@ function handleConnectionError(error) {
     showAlert(errorConfig.message, errorConfig.type);
     emit('wallet:error', { error: error.message });
 
-    // 再試行ロジック
-    if (connectionAttempts < MAX_ATTEMPTS) {
+    // Handle retry logic
+    if (connectionAttempts < MAX_ATTEMPTS && error.message !== 'USER_REJECTED') {
         connectionAttempts++;
-        setTimeout(initializeWalletConnection, 1000);
+        return new Error(errorConfig.message + ' Retrying...');
     }
+
+    return new Error(errorConfig.message);
 }
 
 /**
@@ -181,15 +196,16 @@ export function getConnectionState() {
 
 /**
  * ウォレットの切断
- * @returns {void}
  */
 export function disconnectWallet() {
     connectionState = CONNECTION_STATES.DISCONNECTED;
     updateState({
         wallet: {
             address: '',
-            isConnected: false
+            isConnected: false,
+            chainId: null
         }
     });
     emit('wallet:disconnected');
+    showAlert('Wallet disconnected', 'info');
 }
