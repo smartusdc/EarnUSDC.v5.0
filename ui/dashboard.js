@@ -285,8 +285,6 @@ function renderErrorState() {
 
 /**
  * Get rank color class
- *// ui/dashboard.js
-
 /**
  * Get rank color class
  * @param {string} rank Rank name
