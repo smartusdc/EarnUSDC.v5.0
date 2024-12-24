@@ -71,7 +71,7 @@ export async function initializeWalletConnection() {
         await ensureCorrectNetwork();
         console.log('Network check complete');
 
-        // Initialize Web3 and fetch initial data
+        // Initialize Web3
         console.log('Initializing Web3...');
         try {
             web3Instance = new Web3(provider);
@@ -114,17 +114,19 @@ export async function initializeWalletConnection() {
         // Fetch initial data
         console.log('Fetching contract data...');
         try {
-            // Fetch basic data
-            const [deposits, calculatedReward, usdcBalance, referralCode] = await Promise.all([
+            console.log('Fetching basic data...');
+            // Fetch basic data first
+            const [deposits, calculatedReward, usdcBalance] = await Promise.all([
                 window.contract.methods.deposits(userAddress).call(),
                 window.contract.methods.calculateReward(userAddress).call(),
-                window.usdcContract.methods.balanceOf(userAddress).call(),
-                window.contract.methods.userToReferralCode(userAddress).call()
+                window.usdcContract.methods.balanceOf(userAddress).call()
             ]);
+            console.log('Basic data fetched');
 
+            console.log('Fetching rank data...');
             // Fetch rank data separately
             const userRank = await window.contract.methods.getUserRank(userAddress).call();
-            console.log('User rank data:', userRank);
+            console.log('Rank data fetched:', userRank);
 
             const rankProgress = Math.min(
                 (Number(userRank.progressToNextRank || 0) / 10000) * 100,
@@ -154,7 +156,7 @@ export async function initializeWalletConnection() {
                     progress: rankProgress
                 },
                 referral: {
-                    code: referralCode === '0' ? null : referralCode
+                    code: null // リファラルコードは後で必要に応じて実装
                 }
             });
 
