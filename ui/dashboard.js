@@ -286,7 +286,6 @@ function renderErrorState() {
 /**
  * Get rank color class
  *// ui/dashboard.js
-[前半部分は省略... 直前のコードの続きです]
 
 /**
  * Get rank color class
