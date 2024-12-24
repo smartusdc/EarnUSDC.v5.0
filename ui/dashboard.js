@@ -2,7 +2,7 @@
 import { getState } from '../core/store.js';
 import { formatUSDC } from '../utils/formatters.js';
 import { createTransactionForm } from './forms.js';
-import { showProcessModal, hideProcessModal } from './modals.js';
+import { showModal, closeModal } from './modals.js';
 import { emit } from '../core/events.js';
 
 /**
@@ -26,6 +26,8 @@ export function renderDashboard(containerId = 'mainContent') {
 
     // フォームハンドラーの設定
     setupFormHandlers();
+
+    emit('dashboard:rendered');
 }
 
 /**
@@ -215,5 +217,45 @@ function getRankColorClass(rank) {
     return colors[rank] || colors['Normal'];
 }
 
-// イベントとの連携
-emit('dashboard:rendered');
+/**
+ * フォームのイベントハンドラーを設定
+ */
+function setupFormHandlers() {
+    // Deposit form
+    const depositForm = document.querySelector('form[data-type="deposit"]');
+    if (depositForm) {
+        depositForm.addEventListener('submit', handleDeposit);
+    }
+
+    // Withdraw form
+    const withdrawForm = document.querySelector('form[data-type="withdraw"]');
+    if (withdrawForm) {
+        withdrawForm.addEventListener('submit', handleWithdraw);
+    }
+}
+
+// Export for use in index.html
+window.handleClaimRewards = async function() {
+    // Implementation will be added
+};
+
+window.handleClaimReferralRewards = async function() {
+    // Implementation will be added
+};
+
+window.handleGenerateReferralCode = async function() {
+    // Implementation will be added
+};
+
+window.copyReferralCode = async function(code) {
+    try {
+        await navigator.clipboard.writeText(code);
+        showModal({
+            type: 'success',
+            title: 'Success',
+            content: 'Referral code copied to clipboard!'
+        });
+    } catch (error) {
+        console.error('Failed to copy:', error);
+    }
+};
