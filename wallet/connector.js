@@ -20,12 +20,14 @@ let currentModalId = null;
 let web3Instance = null;
 
 /**
- * ウォレット接続の初期化
+ * Initialize wallet connection
  * @returns {Promise<boolean>} Connection success
  */
 export async function initializeWalletConnection() {
+    console.log('Starting wallet connection initialization');
+    
     if (connectionState === CONNECTION_STATES.CONNECTING) {
-        showAlert('Connection already in progress...', 'info');
+        showAlert('Connection already in progress', 'info');
         return false;
     }
 
@@ -43,10 +45,12 @@ export async function initializeWalletConnection() {
         });
 
         // Check for Ethereum provider
+        console.log('Detecting Ethereum provider...');
         const provider = await detectEthereumProvider();
         if (!provider) {
             throw new Error('WALLET_NOT_FOUND');
         }
+        console.log('Ethereum provider detected');
 
         // Ensure the provider is MetaMask
         if (!provider.isMetaMask) {
@@ -54,36 +58,34 @@ export async function initializeWalletConnection() {
         }
 
         // Request accounts
+        console.log('Requesting accounts...');
         const accounts = await requestAccounts();
         if (!accounts || accounts.length === 0) {
             throw new Error('NO_ACCOUNTS');
         }
+        console.log('Account access granted:', accounts[0]);
 
         // Check and switch network if needed
+        console.log('Checking network...');
         await ensureCorrectNetwork();
-        
-        // Initialize Web3 and contracts
+        console.log('Network check complete');
+
+        // Initialize Web3 and fetch initial data
+        console.log('Initializing Web3 and fetching data...');
         await initializeWeb3AndContracts(provider);
+        console.log('Web3 initialization complete');
 
         // Update connection state
         connectionState = CONNECTION_STATES.CONNECTED;
         connectionAttempts = 0;
 
-        // Update application state
-        updateState({
-            wallet: {
-                address: accounts[0],
-                isConnected: true,
-                chainId: await provider.request({ method: 'eth_chainId' })
-            }
-        });
-
-        emit('wallet:connected', { account: accounts[0] });
-        showAlert('Wallet connected successfully', 'success');
+        // Show success message
+        showAlert('Successfully connected to wallet', 'success');
         
         return true;
 
     } catch (error) {
+        console.error('Connection error:', error);
         const handledError = handleConnectionError(error);
         throw handledError;
 
@@ -96,7 +98,122 @@ export async function initializeWalletConnection() {
 }
 
 /**
- * Ethereumプロバイダーの検出
+ * Initialize Web3 and contracts, fetch initial data
+ * @param {any} provider Ethereum provider
+ */
+async function initializeWeb3AndContracts(provider) {
+    try {
+        console.log('Starting Web3 initialization...');
+        
+        const Web3 = window.Web3;
+        if (!Web3) {
+            throw new Error('Web3 is not loaded');
+        }
+
+        web3Instance = new Web3(provider);
+        console.log('Web3 instance created');
+
+        // Initialize contracts
+        window.contract = new web3Instance.eth.Contract(
+            CONTRACT_ABI,
+            window.CONTRACT_ADDRESS
+        );
+        window.usdcContract = new web3Instance.eth.Contract(
+            USDC_ABI,
+            window.USDC_ADDRESS
+        );
+        console.log('Contracts initialized');
+
+        // Get the connected account
+        const accounts = await web3Instance.eth.getAccounts();
+        const userAddress = accounts[0];
+        console.log('Fetching data for account:', userAddress);
+
+        // Update modal content
+        if (currentModalId) {
+            showModal({
+                title: 'Loading Data',
+                content: `
+                    <div class="text-center">
+                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                        <p class="mt-4 text-sm text-gray-500">Loading your account data...</p>
+                    </div>
+                `,
+                closable: false
+            });
+        }
+
+        // Fetch all required data in parallel
+        console.log('Fetching contract data...');
+        const [
+            deposits,
+            calculatedReward,
+            usdcBalance,
+            rankInfo,
+            referralCode
+        ] = await Promise.all([
+            window.contract.methods.deposits(userAddress).call(),
+            window.contract.methods.calculateReward(userAddress).call(),
+            window.usdcContract.methods.balanceOf(userAddress).call(),
+            window.contract.methods.getUserRank(userAddress).call(),
+            window.contract.methods.userToReferralCode(userAddress).call()
+        ]);
+        
+        console.log('Contract data fetched:', {
+            deposits,
+            calculatedReward,
+            usdcBalance,
+            rankInfo,
+            referralCode
+        });
+
+        // Calculate rank progress
+        const rankProgress = Math.min(
+            (Number(rankInfo.progressToNextRank) / 10000) * 100,
+            100
+        );
+
+        // Update application state
+        updateState({
+            wallet: {
+                address: userAddress,
+                isConnected: true,
+                networkId: await provider.request({ method: 'eth_chainId' })
+            },
+            balance: {
+                usdc: web3Instance.utils.fromWei(usdcBalance, 'mwei'),
+                deposits: web3Instance.utils.fromWei(deposits, 'mwei'),
+                rewards: web3Instance.utils.fromWei(calculatedReward, 'mwei')
+            },
+            rewards: {
+                pending: web3Instance.utils.fromWei(calculatedReward, 'mwei'),
+                accumulated: '0',
+                referral: '0'
+            },
+            rank: {
+                current: rankInfo.rankName,
+                bonus: Number(rankInfo.bonusRate) / 100,
+                progress: rankProgress
+            },
+            referral: {
+                code: referralCode === '0' ? null : referralCode
+            }
+        });
+
+        console.log('Application state updated');
+        emit('wallet:connected', { account: userAddress });
+        
+        return true;
+
+    } catch (error) {
+        console.error('Web3 initialization error:', error);
+        showAlert('Failed to load account data. Please try again.', 'error');
+        throw new Error('WEB3_INIT_FAILED');
+    }
+}
+
+/**
+ * Detect Ethereum provider
  * @returns {Promise<any>} Ethereum provider
  */
 async function detectEthereumProvider() {
@@ -116,38 +233,7 @@ async function detectEthereumProvider() {
 }
 
 /**
- * Web3とコントラクトの初期化
- * @param {any} provider Ethereum provider
- */
-async function initializeWeb3AndContracts(provider) {
-    try {
-        // Web3が既にグローバルに存在する場合はそれを使用
-        const Web3 = window.Web3;
-        if (!Web3) {
-            throw new Error('Web3 is not loaded');
-        }
-
-        web3Instance = new Web3(provider);
-
-        // Initialize contracts
-        window.contract = new web3Instance.eth.Contract(
-            CONTRACT_ABI,
-            window.CONTRACT_ADDRESS
-        );
-
-        window.usdcContract = new web3Instance.eth.Contract(
-            USDC_ABI,
-            window.USDC_ADDRESS
-        );
-
-        return true;
-    } catch (error) {
-        console.error('Web3 initialization error:', error);
-        throw new Error('WEB3_INIT_FAILED');
-    }
-}
-/**
- * アカウントへのアクセスをリクエスト
+ * Request account access
  * @returns {Promise<string[]>} Connected accounts
  */
 async function requestAccounts() {
@@ -164,7 +250,7 @@ async function requestAccounts() {
 }
 
 /**
- * ネットワークの確認と切り替え
+ * Ensure correct network connection
  */
 async function ensureCorrectNetwork() {
     const chainId = await window.ethereum.request({ method: 'eth_chainId' });
@@ -186,7 +272,7 @@ async function ensureCorrectNetwork() {
 }
 
 /**
- * Base Networkの追加
+ * Add Base Network to wallet
  */
 async function addNetwork() {
     try {
@@ -200,7 +286,7 @@ async function addNetwork() {
 }
 
 /**
- * 接続エラーの処理
+ * Handle connection errors
  * @param {Error} error Connection error
  * @returns {Error} Handled error
  */
@@ -225,7 +311,7 @@ function handleConnectionError(error) {
 }
 
 /**
- * ウォレットの切断
+ * Disconnect wallet
  */
 export function disconnectWallet() {
     connectionState = CONNECTION_STATES.DISCONNECTED;
@@ -235,7 +321,7 @@ export function disconnectWallet() {
         wallet: {
             address: '',
             isConnected: false,
-            chainId: null
+            networkId: null
         }
     });
 
@@ -244,14 +330,15 @@ export function disconnectWallet() {
 }
 
 /**
- * Web3インスタンスの取得
+ * Get Web3 instance
  * @returns {Object|null} Web3 instance
  */
 export function getWeb3Instance() {
     return web3Instance;
 }
+
 /**
- * 接続状態の取得
+ * Get connection state
  * @returns {string} Current connection state
  */
 export function getConnectionState() {
