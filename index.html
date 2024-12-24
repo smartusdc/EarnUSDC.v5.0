@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EarnUSDC - High Yield USDC Staking</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.3.0/web3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.js"></script>
+    
+    <!-- Core Libraries -->
+    <script type="module" src="core/events.js"></script>
+    <script type="module" src="core/store.js"></script>
+
+    <!-- Transaction Handlers -->
+    <script type="module" src="transactions/gas.js"></script>
+    <script type="module" src="transactions/executor.js"></script>
+
+    <!-- Wallet Integration -->
+    <script type="module" src="wallet/connector.js"></script>
+    <script type="module" src="wallet/events.js"></script>
+
+    <!-- UI Components -->
+    <script type="module" src="ui/alerts.js"></script>
+    <script type="module" src="ui/modals.js"></script>
+    <script type="module" src="ui/forms.js"></script>
+    <script type="module" src="ui/dashboard.js"></script>
+
+    <!-- Utilities -->
+    <script type="module" src="utils/formatters.js"></script>
+    <script type="module" src="utils/validators.js"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="bg-white shadow">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+            <div class="flex justify-between items-center">
+                <h1 class="text-3xl font-bold text-gray-900">EarnUSDC</h1>
+                <div id="walletConnect">
+                    <!-- Wallet connection button will be injected here -->
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div id="mainContent">
+            <!-- Dashboard will be injected here -->
+        </div>
+    </main>
+
+    <!-- Alert Container -->
+    <div id="alertContainer" class="fixed top-4 right-4 z-50 space-y-2">
+        <!-- Alerts will be injected here -->
+    </div>
+
+    <!-- Contract Configuration -->
+    <script>
+        window.CONTRACT_ADDRESS = '0x3038eBDFF5C17d9B0f07871b66FCDc7B9329fCD8';
+        window.USDC_ADDRESS = '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913';
+        window.CHAIN_CONFIG = {
+            chainId: '0x2105', // Base Mainnet
+            chainName: 'Base',
+            nativeCurrency: {
+                name: 'ETH',
+                symbol: 'ETH',
+                decimals: 18
+            },
+            rpcUrls: ['https://mainnet.base.org'],
+            blockExplorerUrls: ['https://basescan.org']
+        };
+        
+        // Initialize application
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const { setupWalletEvents } = await import('./wallet/events.js');
+                const { renderDashboard } = await import('./ui/dashboard.js');
+                
+                setupWalletEvents();
+                renderDashboard();
+            } catch (error) {
+                console.error('Initialization error:', error);
+            }
+        });
+    </script>
+</body>
+</html>
