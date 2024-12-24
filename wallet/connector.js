@@ -16,6 +16,7 @@ const CONNECTION_STATES = {
 let connectionState = CONNECTION_STATES.DISCONNECTED;
 let connectionAttempts = 0;
 const MAX_ATTEMPTS = 3;
+let currentModalId = null;
 
 /**
  * ウォレット接続の初期化
@@ -29,7 +30,17 @@ export async function initializeWalletConnection() {
 
     try {
         connectionState = CONNECTION_STATES.CONNECTING;
-        showProcessModal('Connecting Wallet', 'Please approve the connection request in your wallet');
+        currentModalId = showModal({
+            type: 'process',
+            closable: false,
+            title: 'Connecting Wallet',
+            content: `
+                <div class="text-center">
+                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                    <p class="mt-2 text-sm text-gray-500">Please approve the connection request in your wallet</p>
+                </div>
+            `
+        });
 
         // Check for wallet presence
         if (!window.ethereum) {
@@ -60,9 +71,9 @@ export async function initializeWalletConnection() {
         throw handledError;
 
     } finally {
-        hideProcessModal();
-        if (connectionState === CONNECTION_STATES.CONNECTING) {
-            connectionState = CONNECTION_STATES.DISCONNECTED;
+        if (currentModalId) {
+            closeModal(currentModalId);
+            currentModalId = null;
         }
     }
 }
