@@ -558,4 +558,4 @@ window.copyReferralCode = async function(code) {
     }
 };
 
-export { renderDashboard, updateDashboardData };
+export { updateDashboardData };
