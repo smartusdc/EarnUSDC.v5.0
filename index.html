@@ -12,7 +12,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
 
     <!-- Web3 and Dependencies -->
-    <script defer src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.3.0/web3.min.js" onload="window.web3Loaded = true"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.3.0/web3.min.js"></script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header -->
@@ -156,12 +156,16 @@
                     }
 
                     // Update address display
-                    const address = window.ethereum?.selectedAddress;
+                    const address = await window.ethereum.request({ method: 'eth_requestAccounts' }).then(accounts => accounts[0]);
                     if (address) {
                         walletAddress.textContent = `${address.slice(0, 6)}...${address.slice(-4)}`;
                     }
 
+                    // Ensure UI is updated before rendering dashboard
+                    await new Promise(resolve => setTimeout(resolve, 100));
+
                     // Render dashboard
+                    console.log('Rendering dashboard...');
                     await renderDashboard();
                 }
             } catch (error) {
@@ -214,26 +218,6 @@
         // Initialize Application
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                // Wait for Web3 to load
-                await new Promise((resolve, reject) => {
-                    if (window.web3Loaded) {
-                        resolve();
-                    } else {
-                        const checkWeb3 = setInterval(() => {
-                            if (window.web3Loaded) {
-                                clearInterval(checkWeb3);
-                                resolve();
-                            }
-                        }, 100);
-                        
-                        // Timeout after 10 seconds
-                        setTimeout(() => {
-                            clearInterval(checkWeb3);
-                            reject(new Error('Web3 loading timeout'));
-                        }, 10000);
-                    }
-                });
-
                 // Setup wallet events
                 setupWalletEvents();
 
