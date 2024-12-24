@@ -2,7 +2,7 @@
 import { emit } from '../core/events.js';
 import { updateState } from '../core/store.js';
 import { showAlert } from '../ui/alerts.js';
-import { showProcessModal, hideProcessModal } from '../ui/modals.js';
+import { showModal, closeModal } from '../ui/modals.js';
 import { CONTRACT_ABI, USDC_ABI } from '../config/contracts.js';
 
 // Connection state management
