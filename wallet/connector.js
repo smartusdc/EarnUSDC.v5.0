@@ -247,3 +247,10 @@ export function disconnectWallet() {
 export function getWeb3Instance() {
     return web3Instance;
 }
+/**
+ * 接続状態の取得
+ * @returns {string} Current connection state
+ */
+export function getConnectionState() {
+    return connectionState;
+}
