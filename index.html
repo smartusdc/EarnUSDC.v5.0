@@ -11,8 +11,19 @@
     <!-- Styles -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
 
-    <!-- Web3 and Dependencies -->
+    <!-- Web3 -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/web3/4.3.0/web3.min.js"></script>
+
+    <!-- Wait for Web3 to load before initializing app -->
+    <script>
+        window.addEventListener('load', function() {
+            if (typeof Web3 === 'undefined') {
+                console.error('Web3 is not loaded properly');
+            } else {
+                console.log('Web3 loaded successfully');
+            }
+        });
+    </script>
 </head>
 <body class="bg-gray-50 min-h-screen">
     <!-- Header -->
