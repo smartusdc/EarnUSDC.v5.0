@@ -2,7 +2,7 @@
 import { emit } from '../core/events.js';
 import { updateState } from '../core/store.js';
 import { showAlert } from '../ui/alerts.js';
-import { showModal, closeModal } from '../ui/modals.js';
+import { showModal, closeModal, updateModal } from '../ui/modals.js';
 import { CONTRACT_ABI, USDC_ABI } from '../config/contracts.js';
 
 // Connection state management
@@ -25,7 +25,6 @@ const RANK_THRESHOLDS = {
 let connectionState = CONNECTION_STATES.DISCONNECTED;
 let connectionAttempts = 0;
 const MAX_ATTEMPTS = 3;
-let currentModalId = null;
 let web3Instance = null;
 
 /**
@@ -70,16 +69,7 @@ export async function initializeWalletConnection() {
 
     try {
         connectionState = CONNECTION_STATES.CONNECTING;
-        currentModalId = showModal({
-            title: 'Connecting Wallet',
-            content: `
-                <div class="text-center">
-                    <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                    <p class="mt-4 text-sm text-gray-500">Connecting to your wallet...</p>
-                </div>
-            `,
-            closable: false
-        });
+        showAlert('Connecting to wallet...', 'info');
 
         // Check for Ethereum provider
         console.log('Detecting Ethereum provider...');
@@ -134,18 +124,8 @@ export async function initializeWalletConnection() {
             throw new Error('CONTRACT_INIT_FAILED');
         }
 
-        // Update modal for data fetching
-   if (currentModalId) {
-    updateModal(currentModalId, {
-        title: 'Loading Data',
-        content: `
-            <div class="text-center">
-                <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
-                <p class="mt-4 text-sm text-gray-500">Loading your account data...</p>
-            </div>
-        `
-    });
-}
+        // Show loading message
+        showAlert('Loading account data...', 'info');
 
         // Fetch initial data
         console.log('Fetching contract data...');
@@ -190,6 +170,10 @@ export async function initializeWalletConnection() {
             console.log('Application state updated successfully');
             emit('wallet:connected', { account: userAddress });
 
+            // Store connection state in localStorage
+            localStorage.setItem('walletConnected', 'true');
+            localStorage.setItem('lastConnectedAccount', userAddress);
+
         } catch (error) {
             console.error('Data fetching error:', error);
             throw new Error('DATA_FETCH_FAILED');
@@ -207,12 +191,6 @@ export async function initializeWalletConnection() {
         console.error('Connection error:', error);
         const handledError = handleConnectionError(error);
         throw handledError;
-
-    } finally {
-        if (currentModalId) {
-            closeModal(currentModalId);
-            currentModalId = null;
-        }
     }
 }
 
@@ -336,6 +314,10 @@ export function disconnectWallet() {
             networkId: null
         }
     });
+
+    // Clear stored connection state
+    localStorage.removeItem('walletConnected');
+    localStorage.removeItem('lastConnectedAccount');
 
     emit('wallet:disconnected');
     showAlert('Wallet disconnected', 'info');
